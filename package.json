@@ -1,0 +1,47 @@
+{
+  "name": "pi-cleanup-agent-tmp",
+  "version": "1.0.0",
+  "description": "Pi extension that empties a project's .agents/tmp directory on graceful exit.",
+  "type": "module",
+  "license": "MIT",
+  "keywords": [
+    "pi-package",
+    "pi-extension",
+    "cleanup",
+    "temporary-files"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jmbenedetto/pi-cleanup-agent-tmp.git"
+  },
+  "homepage": "https://github.com/jmbenedetto/pi-cleanup-agent-tmp#readme",
+  "bugs": {
+    "url": "https://github.com/jmbenedetto/pi-cleanup-agent-tmp/issues"
+  },
+  "files": [
+    "extensions",
+    "README.md",
+    "LICENSE"
+  ],
+  "pi": {
+    "extensions": [
+      "./extensions/cleanup-agent-tmp.ts"
+    ]
+  },
+  "scripts": {
+    "test": "node --experimental-strip-types --test tests/*.test.mjs",
+    "typecheck": "tsc --noEmit",
+    "check": "npm run typecheck && npm test"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*"
+  },
+  "devDependencies": {
+    "@earendil-works/pi-coding-agent": "0.84.3",
+    "@types/node": "^24.0.0",
+    "typescript": "^5.8.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

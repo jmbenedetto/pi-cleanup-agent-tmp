@@ -1,14 +1,16 @@
 {
   "name": "pi-cleanup-agent-tmp",
   "version": "1.0.0",
-  "description": "Pi extension that empties a project's .agents/tmp directory on graceful exit.",
+  "description": "Pi package that cleans .agents/tmp on graceful exit and guards OneDrive path lengths.",
   "type": "module",
   "license": "MIT",
   "keywords": [
     "pi-package",
     "pi-extension",
     "cleanup",
-    "temporary-files"
+    "temporary-files",
+    "onedrive",
+    "path-length"
   ],
   "repository": {
     "type": "git",
@@ -25,7 +27,8 @@
   ],
   "pi": {
     "extensions": [
-      "./extensions/cleanup-agent-tmp.ts"
+      "./extensions/cleanup-agent-tmp.ts",
+      "./extensions/path-length-guard.ts"
     ]
   },
   "scripts": {

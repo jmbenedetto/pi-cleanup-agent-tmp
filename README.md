@@ -1,12 +1,16 @@
 # pi-cleanup-agent-tmp
 
-A [Pi](https://github.com/badlogic/pi-mono) package that cleans the project's `.agents/tmp` on graceful exit and blocks known over-limit file destinations in OneDrive folders.
+A [Pi](https://github.com/badlogic/pi-mono) package that gives each agent or subagent its own temporary directory and blocks known over-limit file destinations in OneDrive folders.
 
-Cleanup preserves the `tmp` directory itself and removes every file and nested directory inside it, including hidden files.
+Before each agent run, the extension reads `ctx.sessionManager.getSessionId()`, creates `.agents/tmp/<session-id>/` under the current project, and appends its absolute path to the system prompt. Agents are directed to save scratch scripts and intermediate outputs there. Each subagent uses its own session ID, not its parent's ID.
+
+New session directories contain `.pi-session-tmp.json`, an ownership marker recording the extension, format version and session ID. Existing directories are reused only when that regular, non-symlink marker matches the session. An unmarked directory is never adopted, even if its name matches a valid session ID.
+
+On graceful quit, cleanup verifies ownership again and removes only that session directory, including its nested and hidden files. Other sessions, unowned legacy directories, files directly in `.agents/tmp`, and the shared root itself are preserved. Missing, malformed or mismatched ownership evidence leaves the directory untouched and reports a skipped cleanup.
 
 ## Install
 
-Install the tagged release globally:
+The session-isolation change is not in the existing `v1.0.0` tag. Use the local checkout instructions below to test it. The existing published release can be installed globally with:
 
 ```bash
 pi install git:github.com/jmbenedetto/pi-cleanup-agent-tmp@v1.0.0
@@ -32,17 +36,23 @@ Cleanup runs for a graceful Pi quit:
 
 It does not run for `/reload`, `/new`, `/resume`, or `/fork`. SIGKILL and process crashes cannot run shutdown hooks.
 
-The extension skips `.agents/tmp` if that path is a file or symbolic link.
+Reload and session replacement preserve temporary files. The next run uses the current context's session ID, so new, resumed and forked sessions are directed to their own directory. Preserved directories are not swept automatically; a resumed session cleans its directory when it eventually quits.
+
+Session IDs follow Pi's safe-component format: alphanumeric start and end, with alphanumeric characters, dots, underscores and hyphens internally. There is no additional application-level length cap; filesystem limits still apply. Missing or unsafe session IDs never fall back to shared-root cleanup. Directory creation and cleanup refuse files and symbolic links at `.agents`, `tmp`, or the session-directory boundary. These checks assume a trusted workspace; they are not a sandbox against concurrent filesystem tampering.
 
 ## Concurrent sessions
 
-`.agents/tmp` belongs to the project, not to one Pi session. If several Pi sessions use the same project, quitting any one of them empties the shared directory.
+Sessions with different IDs use sibling directories. A parent or subagent can quit without removing the other's files. The same ID in a different project has a different directory. Two processes deliberately opening the same logical session ID in the same project share that directory; use separate sessions for concurrent work.
+
+Keep the ownership marker intact. If an ID collides with an unowned legacy directory, or its marker cannot be verified, prompt preparation reports an error rather than adopting or moving that directory. Resolve the collision explicitly; no automatic migration is performed.
+
+Guidance applies wherever this extension is enabled, including non-interactive SDK subagents. It does not rewrite shell commands, set a process-wide `TMPDIR`, or sandbox writes. Scripts and skills with hard-coded shared temporary paths must be pointed at the session directory. Keep deliverables, durable caches and cross-session handoff files in explicitly chosen persistent locations, not in a session's temporary directory. No legacy files are moved or deleted.
 
 ## OneDrive path-length guard
 
 Microsoft documents a **400-character maximum for the entire decoded cloud path**, including folders, separators, filename and extension. Exactly 400 is allowed; 401 is blocked. This is not a 400-character filename limit, and the cloud path is not the local absolute path. See [Microsoft's path-length limits](https://support.microsoft.com/en-us/onedrive/what-are-file-path-length-limits) and [restrictions and limitations](https://support.microsoft.com/en-us/onedrive/restrictions-and-limitations-in-onedrive-and-sharepoint).
 
-The `tool_call` hook checks destinations **before** Pi executes a supported tool. It runs without a UI and reports the measured length and how many characters must be removed. The cleanup hook is unchanged.
+The `tool_call` hook checks destinations **before** Pi executes a supported tool. It runs without a UI and reports the measured length and how many characters must be removed. This guard does not perform cleanup.
 
 ### OneDrive only
 
@@ -88,19 +98,22 @@ It does not scan or rename existing files on startup. No OneDrive account or clo
 
 ### Try the local checkout
 
-This change is not in the existing `v1.0.0` tag. To try the guard without changing your package configuration, start a new Pi session with:
+The session-isolation change and the path-length guard are not in the existing `v1.0.0` tag. To try only the guard without changing your package configuration, start a new Pi session with:
 
 ```bash
 pi -e /absolute/path/to/pi-cleanup-agent-tmp/extensions/path-length-guard.ts
 ```
 
-To load the full local package instead of a Git release, replace its Git package entry with the absolute checkout path in your Pi settings, then `/reload`. Do not load both cleanup entry points, since that registers cleanup twice.
+To load the full local package instead of a Git release, replace its Git package entry with the absolute checkout path in your Pi settings, then `/reload`. For a checkout under `~/code`, that entry is `/Users/<your-user>/code/pi-cleanup-agent-tmp`. Load only one cleanup extension: the old globally installed version would still erase the shared root even alongside the corrected local version. Existing running sessions and subagents retain their loaded code until reloaded or restarted.
 
 ## Development
 
+The development SDK is pinned to Pi 1.3.0 and requires Node.js 22.19.0 or newer. The SDK remains a development dependency and a host-provided peer; it is not bundled with the extension. Updating this checkout does not update an installed Pi runtime.
+
 ```bash
-npm install
-npm run check
+npm ci --ignore-scripts
+mkdir -p .tmp
+TMPDIR="$PWD/.tmp" npm run check
 ```
 
 ## License
